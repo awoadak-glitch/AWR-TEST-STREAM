@@ -1,12 +1,10 @@
 package com.awr.streamhub
 
 import android.content.Context
-import android.net.Uri
 import android.os.Bundle
-import android.widget.MediaController
-import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.annotation.OptIn
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -55,6 +53,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -78,6 +77,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import coil.compose.AsyncImage
+import androidx.media3.common.MediaItem as PlayerMediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.PlayerView
 import java.net.HttpURLConnection
 import java.net.URLEncoder
 import java.net.URL
@@ -278,22 +281,38 @@ private fun HomeRoute(tab: Tab, library: LocalLibrary, apiState: ApiState, onRef
 @Composable
 private fun HubHome(tab: Tab, library: LocalLibrary, apiState: ApiState, onRefresh: () -> Unit, onOpen: (HubItem) -> Unit) {
     val all = visibleCatalog(apiState)
-    val primary = when (tab) { Tab.Anime -> all.filter { it.kind == "Anime" }; Tab.Movies -> all.filter { it.kind == "Movie" }; Tab.Drama -> all.filter { it.kind == "K-Drama" }; else -> all }
-    val continueItems = library.progress.entries.sortedByDescending { it.value }.mapNotNull { entry -> all.firstOrNull { it.id == entry.key } }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    val categoryItems = when (tab) {
+        Tab.Anime -> all.filter { it.kind == "Anime" }
+        Tab.Movies -> all.filter { it.kind == "Movie" }
+        Tab.Drama -> all.filter { it.kind == "K-Drama" }
+        else -> all
+    }
+    val safeItems = if (categoryItems.isNotEmpty()) categoryItems else localCatalog.filter { fallback ->
+        when (tab) {
+            Tab.Anime -> fallback.kind == "Anime"
+            Tab.Movies -> fallback.kind == "Movie"
+            Tab.Drama -> fallback.kind == "K-Drama"
+            else -> true
+        }
+    }
+    val continueItems = library.progress.entries
+        .sortedByDescending { it.value }
+        .mapNotNull { entry -> safeItems.firstOrNull { item -> item.id == entry.key } }
+    val screenName = when (tab) { Tab.Anime -> "Anime"; Tab.Movies -> "Movies"; Tab.Drama -> "K-Drama"; else -> "Catalog" }
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item { AppHeader(apiState, onRefresh) }
-        item { HeroBanner(primary.firstOrNull() ?: all.first(), library, onOpen) }
-        if (continueItems.isNotEmpty()) { item { SectionTitle("Continue Watching", "Resume from your last local position") }; item { MediaRail(continueItems, library, onOpen) } }
-        item { SectionTitle("Trending", "Live plus local picks") }
-        item { MediaRail(all.sortedByDescending { it.rating }, library, onOpen) }
-        item { SectionTitle("Popular Anime", "Live metadata from Jikan") }
-        item { MediaRail(all.filter { it.kind == "Anime" }, library, onOpen) }
-        item { SectionTitle("Movies", "Consumet route with local fallback") }
-        item { MediaRail(all.filter { it.kind == "Movie" }, library, onOpen) }
-        item { SectionTitle("K-Drama", "Consumet search route") }
-        item { MediaRail(all.filter { it.kind == "K-Drama" }, library, onOpen) }
-        item { SectionTitle("Recently Added", "Fresh API and local entries") }
-        item { MediaRail(all.reversed(), library, onOpen) }
+        item { HeroBanner(safeItems.first(), library, onOpen) }
+        if (continueItems.isNotEmpty()) {
+            item { SectionTitle("Continue Watching", "Only " + screenName + " items you already started") }
+            item { MediaRail(continueItems, library, onOpen) }
+        }
+        item { SectionTitle("Trending " + screenName, "No mixed categories here") }
+        item { MediaRail(safeItems.sortedByDescending { it.rating }, library, onOpen) }
+        item { SectionTitle("Popular " + screenName, "Dedicated results for this tab") }
+        item { MediaRail(safeItems.drop(1).ifEmpty { safeItems }, library, onOpen) }
+        item { SectionTitle("Recently Added " + screenName, "Newest items from API plus local fallback") }
+        item { MediaRail(safeItems.reversed(), library, onOpen) }
         item { Spacer(Modifier.height(8.dp)) }
     }
 }
@@ -309,7 +328,7 @@ private fun AppHeader(apiState: ApiState = ApiState(), onRefresh: (() -> Unit)? 
 
 @Composable
 private fun HeroBanner(item: HubItem, library: LocalLibrary, onOpen: (HubItem) -> Unit) {
-    Card(Modifier.fillMaxWidth().height(310.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Color.White.copy(.08f))) {
+    Card(Modifier.fillMaxWidth().height(336.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Accent.copy(.28f))) {
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(item.accentA, item.accentB, Color.Black)))) {
             item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.92f)))))
@@ -323,7 +342,7 @@ private fun HeroBanner(item: HubItem, library: LocalLibrary, onOpen: (HubItem) -
 
 @Composable
 private fun PosterCard(item: HubItem, library: LocalLibrary, onOpen: (HubItem) -> Unit, modifier: Modifier = Modifier) {
-    Card(modifier.height(252.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Color.White.copy(.08f))) {
+    Card(modifier.height(268.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Color.White.copy(.14f))) {
         Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(item.accentA, item.accentB, Color.Black)))) {
             item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.78f)))))
@@ -368,11 +387,78 @@ private fun DetailsScreen(item: HubItem, library: LocalLibrary, onBack: () -> Un
 
 @Composable private fun EpisodeList(count: Int, onWatch: () -> Unit) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { (1..count).forEach { episode -> Card(Modifier.fillMaxWidth().clickable { onWatch() }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(Panel), border = BorderStroke(1.dp, Color.White.copy(.07f))) { Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Episode " + episode, color = Color.White, fontWeight = FontWeight.Bold); Text("Watch", color = Accent, fontSize = 12.sp) } } } } }
 
+@OptIn(UnstableApi::class)
 @Composable
 private fun PlayerScreen(item: HubItem, savedProgress: Int, onBack: () -> Unit, onSaveProgress: (Int) -> Unit, onNext: () -> Unit) {
-    var subtitle by remember { mutableStateOf("Arabic") }; var currentPosition by remember { mutableStateOf(savedProgress) }; var videoView by remember { mutableStateOf<VideoView?>(null) }
-    LaunchedEffect(videoView) { while (true) { videoView?.let { currentPosition = it.currentPosition / 1000 }; delay(1000) } }
-    Column(Modifier.fillMaxSize().background(Color.Black)) { Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { OutlinedButton(onClick = { onSaveProgress(currentPosition); onBack() }, shape = RoundedCornerShape(8.dp)) { Text("Back") }; Text(item.title, color = Color.White, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis) }; AndroidView(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black), factory = { context -> VideoView(context).apply { videoView = this; setVideoURI(Uri.parse(item.videoUrl)); setMediaController(MediaController(context)); setOnPreparedListener { mediaPlayer -> if (savedProgress > 0) seekTo(savedProgress * 1000); mediaPlayer.start() }; setOnCompletionListener { onSaveProgress(0); onNext() } } }); LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { item { Text("Resume point: " + formatSeconds(savedProgress), color = Soft); ProgressLine(savedProgress) }; item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("Arabic", "English", "Off").forEach { option -> FilterChip(selected = subtitle == option, onClick = { subtitle = option }, label = { Text(option) }) } } }; item { Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Accent.copy(.25f))) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Text("AI Translation", color = Color.White, fontWeight = FontWeight.Black, fontSize = 19.sp); Text("Audio -> Grok ASR -> OpenAI Translation -> SRT -> in-app subtitle playback.", color = Muted, fontSize = 13.sp); PrimaryButton("Generate AI SRT") { onSaveProgress(currentPosition) } } } }; item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { PrimaryButton("Next Episode") { currentPosition = 0; onNext() }; OutlinedButton(onClick = { onSaveProgress(currentPosition) }, shape = RoundedCornerShape(8.dp)) { Text("Save Position") } } } } }
+    val context = LocalContext.current
+    var subtitle by remember { mutableStateOf("Arabic") }
+    var currentPosition by remember { mutableStateOf(savedProgress) }
+    var isReady by remember { mutableStateOf(false) }
+    val player = remember(item.id) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(PlayerMediaItem.fromUri(item.videoUrl))
+            prepare()
+            if (savedProgress > 0) seekTo(savedProgress * 1000L)
+            playWhenReady = true
+        }
+    }
+
+    DisposableEffect(player) {
+        onDispose {
+            onSaveProgress((player.currentPosition / 1000L).toInt())
+            player.release()
+        }
+    }
+
+    LaunchedEffect(player) {
+        while (true) {
+            currentPosition = (player.currentPosition / 1000L).toInt()
+            isReady = player.playbackState != 1
+            delay(1000)
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(Color.Black)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { onSaveProgress(currentPosition); onBack() }, shape = RoundedCornerShape(10.dp)) { Text("Back") }
+            Text(item.title, color = Color.White, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { viewContext -> PlayerView(viewContext).apply { this.player = player; useController = true } },
+                update = { it.player = player }
+            )
+            if (!isReady) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(.54f)), contentAlignment = Alignment.Center) {
+                    Text("Loading player...", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item { Text("Saved position: " + formatSeconds(savedProgress), color = Soft); ProgressLine(currentPosition) }
+            item {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Arabic", "English", "Off").forEach { option -> FilterChip(selected = subtitle == option, onClick = { subtitle = option }, label = { Text(option) }) }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Accent.copy(.3f))) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("AI Translation", color = Color.White, fontWeight = FontWeight.Black, fontSize = 19.sp)
+                        Text("Audio -> Grok ASR -> OpenAI Translation -> SRT -> in-app subtitle playback.", color = Muted, fontSize = 13.sp)
+                        PrimaryButton("Generate AI SRT") { onSaveProgress(currentPosition) }
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrimaryButton("Next Episode") { player.seekTo(0); currentPosition = 0; onSaveProgress(0); onNext() }
+                    OutlinedButton(onClick = { onSaveProgress(currentPosition) }, shape = RoundedCornerShape(10.dp)) { Text("Save Position") }
+                }
+            }
+        }
+    }
 }
 
 @Composable private fun ApiNote() { Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color.White.copy(.08f))) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("API paths active", color = Color.White, fontWeight = FontWeight.Black); Text("Anime: Jikan v4. Movies/K-Drama: Consumet FlixHQ route. Local DataStore keeps favorites, history and progress.", color = Muted, fontSize = 12.sp) } } }

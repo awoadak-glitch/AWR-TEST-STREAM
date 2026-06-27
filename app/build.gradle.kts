@@ -12,8 +12,8 @@ android {
         applicationId = "com.awr.streamhub"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "3.0.0-hitv-first-version"
+        versionCode = 4
+        versionName = "4.0.0-hitv-polished-api-player"
     }
 
     buildTypes {
@@ -39,5 +39,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.media3:media3-exoplayer:1.5.1")
+    implementation("androidx.media3:media3-ui:1.5.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
