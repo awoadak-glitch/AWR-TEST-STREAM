@@ -1,0 +1,33 @@
+name: Subtitle Demand Worker
+on:
+  workflow_dispatch:
+    inputs:
+      media_id:
+        description: 'Catalog media id'
+        required: true
+      source_language:
+        description: 'original language'
+        required: false
+        default: 'auto'
+permissions:
+  contents: write
+jobs:
+  subtitle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build AR/EN SRT package
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: python backend/scripts/subtitle_worker.py --media-id "${{ github.event.inputs.media_id }}" --source-language "${{ github.event.inputs.source_language }}"
+      - name: Commit subtitles
+        run: |
+          git config user.name "AWR Subtitle Bot"
+          git config user.email "actions@github.com"
+          git add data/subtitles data/catalog
+          git commit -m "subtitle: ${{ github.event.inputs.media_id }}" || echo "No changes"
+          git push || true
