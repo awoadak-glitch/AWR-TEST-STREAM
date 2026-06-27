@@ -1,20 +1,19 @@
-# AWR Stream Hub - HiTV First Version
+# AWR Stream Hub - HiTV API Version
 
-This output contains the edited Android Jetpack Compose project.
+Implemented in this version:
+- HiTV-style home with banner and rails.
+- Live API loading for Anime through Jikan v4:
+  - https://api.jikan.moe/v4/top/anime
+  - https://api.jikan.moe/v4/anime?q=...
+- Consumet route wired for Movies and K-Drama search:
+  - https://api.consumet.org/movies/flixhq/{query}
+- API results are merged with local fallback data, so the app still works if an external source is down.
+- Cover images from live APIs are rendered with Coil.
+- DataStore keeps favorites, history and continue-watching progress without accounts.
+- Details page, episode list, in-app player, resume, next episode, subtitle selector and AI Translation entry point are preserved.
 
-Implemented:
-- HiTV-style home with a large banner.
-- Trending, Popular Anime, Movies, K-Drama, Continue Watching and Recently Added rails.
-- No-account local library using DataStore Preferences.
-- Favorites, History and saved watch progress.
-- Details page with cover area, title, rating, genres, story, episode count and episode list.
-- In-app player using Android VideoView.
-- Resume position, next episode action and subtitle selector.
-- AI Translation entry point showing the planned pipeline: audio -> Grok ASR -> OpenAI Translation -> SRT -> video subtitles.
-- API placeholders for Jikan and Consumet integration.
+Important:
+Consumet public hosts can change or go offline. If that happens, change consumetBase in MainActivity.kt to your own deployed Consumet-compatible server.
 
-Open this folder in Android Studio:
-outputs/AWR_Stream_Hub_HiTV_First_Version
-
-Build task:
+Open this folder in Android Studio and run:
 :app:assembleDebug
