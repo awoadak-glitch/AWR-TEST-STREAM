@@ -1,62 +1,59 @@
 package com.awr.streamhub
 
+import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.OptIn
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,195 +66,428 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
-import coil.compose.AsyncImage
-import androidx.media3.common.MediaItem as PlayerMediaItem
+import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import java.net.HttpURLConnection
-import java.net.URLEncoder
-import java.net.URL
-import kotlinx.coroutines.Dispatchers
+import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 
-private val Context.localStore by preferencesDataStore("awr_stream_hub_local")
-
-private val Bg = Color(0xFF05060A)
-private val Panel = Color(0xFF10131B)
-private val Panel2 = Color(0xFF171B25)
-private val Accent = Color(0xFFFFD15C)
-private val Coral = Color(0xFFFF5C7A)
-private val Cyan = Color(0xFF45D7FF)
-private val Green = Color(0xFF47E6A1)
-private val Muted = Color(0xFF9AA3B8)
-private val Soft = Color(0xFFE8ECF4)
-
-private val favoritesKey = stringPreferencesKey("favorites")
-private val historyKey = stringPreferencesKey("history")
-private val progressKey = stringPreferencesKey("progress")
+private val Page = Color(0xFFF7F7F8)
+private val Ink = Color(0xFF18181B)
+private val Muted = Color(0xFF77777F)
+private val Brand = Color(0xFF8E173A)
+private val BrandDark = Color(0xFF5B0D25)
+private val Gold = Color(0xFFFFD400)
+private val Live = Color(0xFFE11D48)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { AwrStreamHubApp() }
+        setContent { AnimeWitcherHybridApp() }
     }
 }
 
-enum class Tab(val label: String) { Anime("Anime"), Movies("Movies"), Drama("K-Drama"), Search("Search"), Favorites("Favorites"), History("History") }
-enum class Screen { Home, Details, Player }
+private enum class Screen { Home, Details, Player }
 
-data class HubItem(
-    val id: String,
-    val title: String,
-    val kind: String,
-    val rating: String,
-    val year: String,
-    val genres: List<String>,
-    val story: String,
-    val episodes: Int,
-    val source: String,
-    val accentA: Color,
-    val accentB: Color,
-    val imageUrl: String? = null,
-    val videoUrl: String = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-)
+@Composable
+fun AnimeWitcherHybridApp() {
+    val scheme = lightColorScheme(
+        primary = Brand,
+        secondary = Gold,
+        background = Page,
+        surface = Color.White,
+        onPrimary = Color.White,
+        onSurface = Ink,
+        onBackground = Ink
+    )
+    MaterialTheme(colorScheme = scheme) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        var tab by remember { mutableStateOf(MainTab.Anime) }
+        var screen by remember { mutableStateOf(Screen.Home) }
+        var sections by remember { mutableStateOf<List<HomeSection>>(emptyList()) }
+        var loading by remember { mutableStateOf(true) }
+        var error by remember { mutableStateOf("") }
+        var selected by remember { mutableStateOf<MediaEntry?>(null) }
+        var detail by remember { mutableStateOf<DetailBundle?>(null) }
+        var detailLoading by remember { mutableStateOf(false) }
+        var sources by remember { mutableStateOf<List<SourceEntry>>(emptyList()) }
+        var sourceEpisode by remember { mutableStateOf<EpisodeEntry?>(null) }
+        var sourceDialog by remember { mutableStateOf(false) }
+        var sourceLoading by remember { mutableStateOf(false) }
+        var playingUrl by remember { mutableStateOf("") }
+        var playingTitle by remember { mutableStateOf("") }
+        var searchOpen by remember { mutableStateOf(false) }
+        var refreshKey by remember { mutableIntStateOf(0) }
 
-data class LocalLibrary(val favorites: Set<String> = emptySet(), val history: List<String> = emptyList(), val progress: Map<String, Int> = emptyMap())
-data class ApiState(val loading: Boolean = false, val message: String = "Local fallback ready", val remoteItems: List<HubItem> = emptyList())
-
-private val localCatalog = listOf(
-    HubItem("anime-aurora", "Blade Aurora", "Anime", "9.7", "2026", listOf("Action", "Shounen", "Adventure"), "A young guardian discovers a forbidden aurora blade and enters a tournament that decides the fate of two worlds.", 24, "Local fallback", Coral, Color(0xFF7C5CFF)),
-    HubItem("anime-classroom", "Starlit Classroom", "Anime", "9.0", "2025", listOf("School", "Fantasy", "Drama"), "A classroom appears only after midnight, where students learn from future versions of themselves.", 12, "Local fallback", Accent, Cyan),
-    HubItem("anime-zero", "Zero Kingdom", "Anime", "9.2", "2026", listOf("Isekai", "Magic", "War"), "A strategist wakes inside a kingdom that resets after every defeat and must win before memory fades.", 25, "Local fallback", Color(0xFF8E6BFF), Color(0xFFFF904D)),
-    HubItem("movie-crimson", "Crimson Horizon", "Movie", "9.1", "2026", listOf("Action", "Sci-Fi", "Thriller"), "A betrayed pilot crosses a burning skyline to stop a global satellite war.", 1, "Local fallback", Coral, Color(0xFFFF9F43)),
-    HubItem("movie-signal", "North Signal", "Movie", "8.6", "2024", listOf("Survival", "Mystery"), "A frozen signal brings a rescue team to a place that should not exist.", 1, "Local fallback", Cyan, Color(0xFF355CFF)),
-    HubItem("movie-crown", "Silent Crown", "Movie", "8.8", "2025", listOf("Drama", "Mystery"), "A royal secret turns into a worldwide chase after a journalist finds a missing archive.", 1, "Local fallback", Color(0xFFB778FF), Green),
-    HubItem("drama-seoul", "Neon Seoul", "K-Drama", "9.4", "2026", listOf("Romance", "Crime", "Thriller"), "A hacker and a prosecutor uncover a city built on erased memories.", 16, "Local fallback", Cyan, Color(0xFF8F65FF)),
-    HubItem("drama-moon", "Moon Contract", "K-Drama", "8.9", "2025", listOf("Fantasy", "Romance"), "A mysterious contract links two souls across time and rewrites one night every full moon.", 12, "Local fallback", Color(0xFFFF9A4B), Accent)
-)
-
-object HubApi {
-    private const val jikanBase = "https://api.jikan.moe/v4"
-    private const val consumetBase = "https://api.consumet.org"
-
-    suspend fun home(tab: Tab): Result<List<HubItem>> = runCatching {
-        when (tab) {
-            Tab.Anime -> jikanTopAnime()
-            Tab.Movies -> consumetMovieSearch("movie")
-            Tab.Drama -> consumetDramaSearch("korean drama")
-            else -> jikanTopAnime() + consumetMovieSearch("movie").take(6) + consumetDramaSearch("korean drama").take(6)
-        }
-    }
-
-    suspend fun search(query: String): Result<List<HubItem>> = runCatching {
-        if (query.isBlank()) emptyList() else jikanSearch(query) + consumetMovieSearch(query).take(8)
-    }
-
-    private suspend fun jikanTopAnime(): List<HubItem> = withContext(Dispatchers.IO) { parseJikan(get(jikanBase + "/top/anime?limit=18"), "Jikan top anime") }
-    private suspend fun jikanSearch(query: String): List<HubItem> = withContext(Dispatchers.IO) { parseJikan(get(jikanBase + "/anime?q=" + query.url() + "&limit=18"), "Jikan search") }
-    private suspend fun consumetMovieSearch(query: String): List<HubItem> = withContext(Dispatchers.IO) { parseConsumet(get(consumetBase + "/movies/flixhq/" + query.url()), "Movie", "Consumet FlixHQ") }
-    private suspend fun consumetDramaSearch(query: String): List<HubItem> = withContext(Dispatchers.IO) { parseConsumet(get(consumetBase + "/movies/flixhq/" + query.url()), "K-Drama", "Consumet FlixHQ") }
-
-    private fun get(url: String): String {
-        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            connectTimeout = 12000
-            readTimeout = 12000
-            setRequestProperty("Accept", "application/json")
-            setRequestProperty("User-Agent", "AWR-Stream-Hub/1.0")
-        }
-        return connection.inputStream.bufferedReader().use { it.readText() }
-    }
-
-    private fun parseJikan(raw: String, source: String): List<HubItem> {
-        val data = JSONObject(raw).optJSONArray("data") ?: JSONArray()
-        return (0 until data.length()).mapNotNull { index ->
-            val item = data.optJSONObject(index) ?: return@mapNotNull null
-            val title = item.optString("title_english").ifBlank { item.optString("title") }
-            if (title.isBlank()) return@mapNotNull null
-            val images = item.optJSONObject("images")?.optJSONObject("jpg")
-            HubItem(
-                id = "jikan-" + item.optInt("mal_id", index),
-                title = title,
-                kind = "Anime",
-                rating = item.optDouble("score", 0.0).takeIf { it > 0.0 }?.toString() ?: "N/A",
-                year = item.optInt("year", 0).takeIf { it > 0 }?.toString() ?: item.optString("status", "Anime"),
-                genres = item.optJSONArray("genres").namesFromArray().ifEmpty { listOf("Anime") }.take(4),
-                story = item.optString("synopsis", "Anime metadata loaded from Jikan."),
-                episodes = item.optInt("episodes", 1).coerceAtLeast(1),
-                source = source,
-                accentA = Coral,
-                accentB = Color(0xFF7C5CFF),
-                imageUrl = images?.let { img -> img.optString("large_image_url").ifBlank { img.optString("image_url") } }
+        LaunchedEffect(tab, refreshKey) {
+            loading = true
+            error = ""
+            sections = emptyList()
+            RemoteApi.loadTab(tab).fold(
+                onSuccess = { sections = it; loading = false },
+                onFailure = { error = it.message ?: "تعذر جلب المحتوى"; loading = false }
             )
         }
-    }
 
-    private fun parseConsumet(raw: String, kind: String, source: String): List<HubItem> {
-        val root = JSONObject(raw)
-        val data = root.optJSONArray("results") ?: root.optJSONArray("data") ?: JSONArray()
-        return (0 until data.length()).mapNotNull { index ->
-            val item = data.optJSONObject(index) ?: return@mapNotNull null
-            val title = item.optString("title").ifBlank { item.optString("name") }
-            if (title.isBlank()) return@mapNotNull null
-            HubItem(
-                id = "consumet-" + item.optString("id", kind + "-" + index),
-                title = title,
-                kind = kind,
-                rating = item.optString("rating", item.optString("releaseDate", "N/A")),
-                year = item.optString("releaseDate", item.optString("year", "New")),
-                genres = listOf(kind, "Online"),
-                story = item.optString("description", "Metadata loaded from Consumet. Connect a licensed stream source for playback."),
-                episodes = 1,
-                source = source,
-                accentA = if (kind == "K-Drama") Cyan else Color(0xFFFF9A4B),
-                accentB = if (kind == "K-Drama") Color(0xFF8F65FF) else Accent,
-                imageUrl = item.optString("image").ifBlank { null }
+        fun openItem(item: MediaEntry) {
+            selected = item
+            detail = null
+            detailLoading = true
+            screen = Screen.Details
+            scope.launch {
+                RemoteApi.loadDetails(item).fold(
+                    onSuccess = { detail = it; selected = it.item; detailLoading = false },
+                    onFailure = { detail = DetailBundle(item); detailLoading = false; error = it.message ?: "تعذر فتح التفاصيل" }
+                )
+            }
+        }
+
+        fun showSources(item: MediaEntry, ep: EpisodeEntry?) {
+            sourceEpisode = ep
+            sources = emptyList()
+            sourceLoading = true
+            sourceDialog = true
+            scope.launch {
+                RemoteApi.loadSources(item, ep).fold(
+                    onSuccess = { sources = it; sourceLoading = false },
+                    onFailure = { sourceLoading = false; error = it.message ?: "تعذر جلب السيرفرات" }
+                )
+            }
+        }
+
+        Scaffold(
+            containerColor = Page,
+            bottomBar = {
+                if (screen == Screen.Home) BottomBar(tab) { newTab ->
+                    tab = newTab
+                    sections = emptyList()
+                    error = ""
+                }
+            }
+        ) { pad ->
+            Box(Modifier.fillMaxSize().background(Page).padding(pad)) {
+                Crossfade(screen, label = "screen") { s ->
+                    when (s) {
+                        Screen.Home -> HomeScreen(
+                            tab = tab,
+                            sections = sections,
+                            loading = loading,
+                            error = error,
+                            onRefresh = { refreshKey++ },
+                            onSearch = { searchOpen = true },
+                            onOpen = ::openItem
+                        )
+                        Screen.Details -> DetailsScreen(
+                            bundle = detail,
+                            fallback = selected,
+                            loading = detailLoading,
+                            onBack = { screen = Screen.Home },
+                            onPlay = { item, ep -> showSources(item, ep) }
+                        )
+                        Screen.Player -> PlayerScreen(playingUrl, playingTitle) {
+                            playingUrl = ""
+                            screen = Screen.Details
+                        }
+                    }
+                }
+            }
+        }
+
+        if (sourceDialog && selected != null) {
+            SourcesDialog(
+                item = selected!!,
+                episode = sourceEpisode,
+                loading = sourceLoading,
+                sources = sources,
+                onDismiss = { sourceDialog = false },
+                onPlay = { src ->
+                    sourceLoading = true
+                    scope.launch {
+                        RemoteApi.resolveSource(selected!!, src, sourceEpisode).fold(
+                            onSuccess = { url ->
+                                sourceLoading = false
+                                sourceDialog = false
+                                playingUrl = url
+                                playingTitle = sourceEpisode?.title ?: selected!!.title
+                                screen = Screen.Player
+                            },
+                            onFailure = { sourceLoading = false; error = it.message ?: "فشل تجهيز السيرفر" }
+                        )
+                    }
+                },
+                onDownload = { src ->
+                    sourceLoading = true
+                    scope.launch {
+                        RemoteApi.resolveSource(selected!!, src, sourceEpisode).fold(
+                            onSuccess = { url ->
+                                sourceLoading = false
+                                enqueueDownload(context, url, "${selected!!.title} ${sourceEpisode?.title.orEmpty()}")
+                            },
+                            onFailure = { sourceLoading = false; error = it.message ?: "فشل تجهيز التنزيل" }
+                        )
+                    }
+                }
+            )
+        }
+
+        if (searchOpen) {
+            SearchDialog(
+                tab = tab,
+                onDismiss = { searchOpen = false },
+                onResults = { result ->
+                    sections = listOf(HomeSection("نتائج البحث", result))
+                    searchOpen = false
+                }
             )
         }
     }
 }
 
 @Composable
-fun AwrStreamHubApp() {
-    val context = LocalContext.current
-    val library by remember { context.localStore.data.map { prefs -> LocalLibrary(prefs[favoritesKey].decodeSet(), prefs[historyKey].decodeList(), prefs[progressKey].decodeProgress()) } }.collectAsState(initial = LocalLibrary())
-    val scope = rememberCoroutineScope()
-    var tab by remember { mutableStateOf(Tab.Anime) }
-    var screen by remember { mutableStateOf(Screen.Home) }
-    var selected by remember { mutableStateOf(localCatalog.first()) }
-    var apiState by remember { mutableStateOf(ApiState()) }
-    var refreshKey by remember { mutableStateOf(0) }
-
-    LaunchedEffect(tab, refreshKey) {
-        if (tab == Tab.Search || tab == Tab.Favorites || tab == Tab.History) return@LaunchedEffect
-        apiState = apiState.copy(loading = true, message = "Loading APIs...")
-        HubApi.home(tab).fold(
-            onSuccess = { items -> apiState = ApiState(false, "Live APIs connected", items) },
-            onFailure = { error -> apiState = ApiState(false, "API fallback: " + (error.message ?: "source unavailable"), emptyList()) }
-        )
+private fun HomeScreen(
+    tab: MainTab,
+    sections: List<HomeSection>,
+    loading: Boolean,
+    error: String,
+    onRefresh: () -> Unit,
+    onSearch: () -> Unit,
+    onOpen: (MediaEntry) -> Unit
+) {
+    val heroItems = sections.firstOrNull()?.items?.take(8).orEmpty()
+    var heroIndex by remember(tab, heroItems.size) { mutableIntStateOf(0) }
+    LaunchedEffect(tab, heroItems.size) {
+        if (heroItems.size > 1) {
+            while (true) {
+                delay(4500)
+                heroIndex = (heroIndex + 1) % heroItems.size
+            }
+        }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(background = Bg, surface = Panel, primary = Accent, secondary = Coral, onBackground = Color.White, onSurface = Color.White, onPrimary = Color.Black)) {
-        Scaffold(containerColor = Bg, bottomBar = { if (screen != Screen.Player) BottomTabs(tab) { tab = it; screen = Screen.Home } }) { padding ->
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0xFF101522), Bg, Color.Black))).padding(padding)) {
-                Crossfade(screen, label = "screen") { current ->
-                    when (current) {
-                        Screen.Home -> HomeRoute(tab, library, apiState, onRefresh = { refreshKey++ }) { selected = it; screen = Screen.Details }
-                        Screen.Details -> DetailsScreen(selected, library, onBack = { screen = Screen.Home }, onFavorite = { scope.launch { context.toggleFavorite(selected.id, library) } }, onWatch = { scope.launch { context.addHistory(selected.id, library) }; screen = Screen.Player })
-                        Screen.Player -> PlayerScreen(selected, library.progress[selected.id] ?: 0, onBack = { screen = Screen.Details }, onSaveProgress = { seconds -> scope.launch { context.saveProgress(selected.id, seconds, library) } }, onNext = { scope.launch { context.saveProgress(selected.id, 0, library); context.addHistory(selected.id, library) } })
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        item { TopHeader(tab.label, onSearch) }
+        if (loading) item { LoadingBlock() }
+        if (error.isNotBlank() && sections.isEmpty()) item { ErrorBlock(error, onRefresh) }
+        if (heroItems.isNotEmpty()) item { HeroCard(heroItems[heroIndex], heroIndex, heroItems.size, onOpen) }
+        items(sections.drop(if (heroItems.isNotEmpty()) 1 else 0)) { section -> SectionBlock(section, onOpen) }
+        if (!loading && sections.isEmpty() && error.isBlank()) item { EmptyBlock("لا يوجد محتوى حالياً") }
+    }
+}
+
+@Composable
+private fun TopHeader(title: String, onSearch: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("☰", fontSize = 28.sp, color = Ink)
+        Spacer(Modifier.weight(1f))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("ANIME WITCHER", color = Brand, fontSize = 18.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+            Text(title, color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.weight(1f))
+        Surface(
+            modifier = Modifier.size(42.dp).clickable(onClick = onSearch),
+            shape = CircleShape,
+            color = Color(0xFFF2F2F4)
+        ) {
+            Box(contentAlignment = Alignment.Center) { Text("⌕", fontSize = 25.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+@Composable
+private fun HeroCard(item: MediaEntry, index: Int, count: Int, onOpen: (MediaEntry) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp)) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).aspectRatio(1.72f).clickable { onOpen(item) },
+            shape = RoundedCornerShape(24.dp),
+            elevation = CardDefaults.cardElevation(3.dp)
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = item.cover.ifBlank { item.poster },
+                    contentDescription = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x18000000), Color(0xC0000000)))))
+                Column(Modifier.align(Alignment.BottomStart).padding(18.dp)) {
+                    if (item.kind == MediaKind.CHANNEL) Badge("LIVE", Live, Color.White)
+                    Text(item.title, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (item.subtitle.isNotBlank()) Text(item.subtitle, color = Color.White.copy(alpha = .82f), fontSize = 12.sp)
+                }
+            }
+        }
+        if (count > 1) {
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.Center) {
+                repeat(count.coerceAtMost(8)) { i ->
+                    Box(
+                        Modifier.padding(horizontal = 3.dp)
+                            .size(if (i == index) 8.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(if (i == index) Brand else Color(0xFFD1D1D5))
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionBlock(section: HomeSection, onOpen: (MediaEntry) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("عرض المزيد", color = Muted, fontSize = 13.sp)
+            Spacer(Modifier.weight(1f))
+            Text(section.title, color = Color(0xFF6A6A70), fontSize = 21.sp, fontWeight = FontWeight.Black)
+        }
+        LazyRow(
+            reverseLayout = true,
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(section.items) { item -> MediaCard(item, section.episodeStyle, onOpen) }
+        }
+    }
+}
+
+@Composable
+private fun MediaCard(item: MediaEntry, episodeStyle: Boolean, onOpen: (MediaEntry) -> Unit) {
+    val wide = item.kind == MediaKind.CHANNEL
+    Column(Modifier.width(if (wide) 210.dp else 142.dp).clickable { onOpen(item) }) {
+        Card(shape = RoundedCornerShape(14.dp), elevation = CardDefaults.cardElevation(1.dp)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(if (wide) 1.65f else .70f)) {
+                AsyncImage(
+                    model = item.poster.ifBlank { item.cover },
+                    contentDescription = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                if (episodeStyle && item.subtitle.isNotBlank()) {
+                    Surface(Modifier.align(Alignment.BottomEnd).padding(7.dp), color = Gold, shape = RoundedCornerShape(7.dp)) {
+                        Text(item.subtitle, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp))
+                    }
+                }
+                if (item.kind == MediaKind.CHANNEL) {
+                    Surface(Modifier.align(Alignment.TopStart).padding(7.dp), color = Live, shape = RoundedCornerShape(7.dp)) {
+                        Text("● مباشر", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(item.title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val meta = item.subtitle.ifBlank { item.year }
+        if (meta.isNotBlank()) Text(meta, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun DetailsScreen(
+    bundle: DetailBundle?,
+    fallback: MediaEntry?,
+    loading: Boolean,
+    onBack: () -> Unit,
+    onPlay: (MediaEntry, EpisodeEntry?) -> Unit
+) {
+    val item = bundle?.item ?: fallback
+    if (item == null) {
+        EmptyBlock("لا يوجد عمل محدد")
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize().background(Color.White), contentPadding = PaddingValues(bottom = 26.dp)) {
+        item {
+            Box(Modifier.fillMaxWidth().height(310.dp)) {
+                AsyncImage(
+                    model = item.cover.ifBlank { item.poster },
+                    contentDescription = item.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x33000000), Color.Transparent, Color.White))))
+                Surface(
+                    Modifier.padding(16.dp).size(44.dp).clickable(onClick = onBack),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = .92f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) { Text("←", fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+                }
+                if (!loading && (item.kind == MediaKind.MOVIE || item.kind == MediaKind.CHANNEL)) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 24.dp, bottom = 2.dp).size(72.dp).clickable { onPlay(item, null) },
+                        shape = RoundedCornerShape(23.dp),
+                        color = Brand
+                    ) {
+                        Box(contentAlignment = Alignment.Center) { Text("▶", color = Color.White, fontSize = 30.sp) }
+                    }
+                }
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Text(item.title, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End, color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    if (item.rating.isNotBlank()) Badge("★ ${item.rating}", Gold, Color.Black)
+                    if (item.year.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Badge(item.year, Color(0xFFF0F0F2), Ink)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Badge(kindArabic(item.kind), Color(0xFFF0F0F2), Ink)
+                }
+                if (item.tags.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.End) {
+                        item.tags.take(4).forEach { t ->
+                            Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFF3EDF0), modifier = Modifier.padding(start = 6.dp)) {
+                                Text(t, color = BrandDark, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+                            }
+                        }
+                    }
+                }
+                if (item.story.isNotBlank()) {
+                    Spacer(Modifier.height(18.dp))
+                    Text("القصة", modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Black)
+                    Text(item.story, modifier = Modifier.fillMaxWidth().padding(top = 7.dp), textAlign = TextAlign.End, color = Color(0xFF55555B), fontSize = 14.sp, lineHeight = 22.sp)
+                }
+            }
+        }
+        if (loading) item { LoadingBlock() }
+        if (!loading && bundle != null && bundle.episodes.isNotEmpty()) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(Modifier.weight(1f))
+                    Text("الحلقات", color = Ink, fontSize = 22.sp, fontWeight = FontWeight.Black)
+                }
+            }
+            items(bundle.episodes.reversed()) { ep -> EpisodeRow(item, ep, onPlay) }
+        }
+        if (!loading && bundle != null && bundle.cast.isNotEmpty()) {
+            item {
+                Text("فريق العمل", modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), textAlign = TextAlign.End, color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                LazyRow(reverseLayout = true, contentPadding = PaddingValues(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(bundle.cast.take(12)) { actor ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(82.dp)) {
+                            AsyncImage(model = actor.poster, contentDescription = actor.title, modifier = Modifier.size(72.dp).clip(CircleShape), contentScale = ContentScale.Crop)
+                            Text(actor.title, color = Ink, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }
@@ -265,216 +495,241 @@ fun AwrStreamHubApp() {
     }
 }
 
-private fun visibleCatalog(apiState: ApiState): List<HubItem> = (apiState.remoteItems + localCatalog).distinctBy { it.id }
-
 @Composable
-private fun HomeRoute(tab: Tab, library: LocalLibrary, apiState: ApiState, onRefresh: () -> Unit, onOpen: (HubItem) -> Unit) {
-    val all = visibleCatalog(apiState)
-    when (tab) {
-        Tab.Search -> SearchScreen(onOpen)
-        Tab.Favorites -> GridScreen("Favorites", "Saved locally on this device", all.filter { it.id in library.favorites }, library, onOpen)
-        Tab.History -> GridScreen("History", "Your latest watched titles", library.history.mapNotNull { id -> all.firstOrNull { it.id == id } }, library, onOpen)
-        else -> HubHome(tab, library, apiState, onRefresh, onOpen)
-    }
-}
-
-@Composable
-private fun HubHome(tab: Tab, library: LocalLibrary, apiState: ApiState, onRefresh: () -> Unit, onOpen: (HubItem) -> Unit) {
-    val all = visibleCatalog(apiState)
-    val categoryItems = when (tab) {
-        Tab.Anime -> all.filter { it.kind == "Anime" }
-        Tab.Movies -> all.filter { it.kind == "Movie" }
-        Tab.Drama -> all.filter { it.kind == "K-Drama" }
-        else -> all
-    }
-    val safeItems = if (categoryItems.isNotEmpty()) categoryItems else localCatalog.filter { fallback ->
-        when (tab) {
-            Tab.Anime -> fallback.kind == "Anime"
-            Tab.Movies -> fallback.kind == "Movie"
-            Tab.Drama -> fallback.kind == "K-Drama"
-            else -> true
-        }
-    }
-    val continueItems = library.progress.entries
-        .sortedByDescending { it.value }
-        .mapNotNull { entry -> safeItems.firstOrNull { item -> item.id == entry.key } }
-    val screenName = when (tab) { Tab.Anime -> "Anime"; Tab.Movies -> "Movies"; Tab.Drama -> "K-Drama"; else -> "Catalog" }
-
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item { AppHeader(apiState, onRefresh) }
-        item { HeroBanner(safeItems.first(), library, onOpen) }
-        if (continueItems.isNotEmpty()) {
-            item { SectionTitle("Continue Watching", "Only " + screenName + " items you already started") }
-            item { MediaRail(continueItems, library, onOpen) }
-        }
-        item { SectionTitle("Trending " + screenName, "No mixed categories here") }
-        item { MediaRail(safeItems.sortedByDescending { it.rating }, library, onOpen) }
-        item { SectionTitle("Popular " + screenName, "Dedicated results for this tab") }
-        item { MediaRail(safeItems.drop(1).ifEmpty { safeItems }, library, onOpen) }
-        item { SectionTitle("Recently Added " + screenName, "Newest items from API plus local fallback") }
-        item { MediaRail(safeItems.reversed(), library, onOpen) }
-        item { Spacer(Modifier.height(8.dp)) }
-    }
-}
-
-@Composable
-private fun AppHeader(apiState: ApiState = ApiState(), onRefresh: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) { Text("AWR Stream Hub", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Black); Text(if (apiState.loading) "Loading Jikan / Consumet..." else apiState.message, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        if (onRefresh != null) OutlinedButton(onClick = onRefresh, shape = RoundedCornerShape(8.dp)) { Text("Refresh") }
-        Spacer(Modifier.width(8.dp)); Box(Modifier.size(48.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Accent, Coral))), contentAlignment = Alignment.Center) { Text("AWR", color = Color.Black, fontSize = 13.sp, fontWeight = FontWeight.Black) }
-    }
-}
-
-@Composable
-private fun HeroBanner(item: HubItem, library: LocalLibrary, onOpen: (HubItem) -> Unit) {
-    Card(Modifier.fillMaxWidth().height(336.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Accent.copy(.28f))) {
-        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(item.accentA, item.accentB, Color.Black)))) {
-            item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.92f)))))
-            Column(Modifier.align(Alignment.BottomStart).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { Pill("Trending | " + item.kind, Accent, Color.Black); Text(item.title, color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Black, maxLines = 2); Text(item.story, color = Soft, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis); Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) { PrimaryButton("Watch") { onOpen(item) }; Text("Rating " + item.rating + " | " + item.episodes + " episodes", color = Soft, fontSize = 12.sp) }; ProgressLine(library.progress[item.id] ?: 0) }
-        }
-    }
-}
-
-@Composable private fun SectionTitle(title: String, subtitle: String) { Column { Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold); Text(subtitle, color = Muted, fontSize = 12.sp) } }
-@Composable private fun MediaRail(items: List<HubItem>, library: LocalLibrary, onOpen: (HubItem) -> Unit) { LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(items) { PosterCard(it, library, onOpen, Modifier.width(160.dp)) } } }
-
-@Composable
-private fun PosterCard(item: HubItem, library: LocalLibrary, onOpen: (HubItem) -> Unit, modifier: Modifier = Modifier) {
-    Card(modifier.height(268.dp).clickable { onOpen(item) }, shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(Color.Transparent), border = BorderStroke(1.dp, Color.White.copy(.14f))) {
-        Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(item.accentA, item.accentB, Color.Black)))) {
-            item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.78f)))))
-            Text(item.kind.uppercase(), color = Color.White.copy(.65f), fontSize = 12.sp, fontWeight = FontWeight.Black, modifier = Modifier.align(Alignment.TopEnd).padding(10.dp))
-            if (item.id in library.favorites) Pill("FAV", Accent, Color.Black, Modifier.align(Alignment.TopStart).padding(9.dp))
-            Column(Modifier.align(Alignment.BottomStart).padding(12.dp)) { Text(item.title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis); Text(item.year + " | Rating " + item.rating, color = Soft, fontSize = 11.sp); ProgressLine(library.progress[item.id] ?: 0) }
+private fun EpisodeRow(item: MediaEntry, ep: EpisodeEntry, onPlay: (MediaEntry, EpisodeEntry?) -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clickable { onPlay(item, ep) },
+        shape = RoundedCornerShape(15.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF6F6F7)),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(Modifier.fillMaxWidth().height(88.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(Modifier.padding(start = 12.dp).size(48.dp), color = Brand, shape = CircleShape) {
+                Box(contentAlignment = Alignment.Center) { Text("▶", color = Color.White, fontSize = 19.sp) }
+            }
+            Spacer(Modifier.weight(1f))
+            Column(Modifier.padding(horizontal = 12.dp).weight(2.3f), horizontalAlignment = Alignment.End) {
+                Text(ep.title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                if (ep.subtitle.isNotBlank()) Text(ep.subtitle, color = Muted, fontSize = 12.sp, maxLines = 1)
+            }
+            AsyncImage(
+                model = ep.thumb.ifBlank { item.poster },
+                contentDescription = ep.title,
+                modifier = Modifier.width(112.dp).fillMaxHeight().clip(RoundedCornerShape(12.dp)),
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }
 
 @Composable
-private fun GridScreen(title: String, subtitle: String, items: List<HubItem>, library: LocalLibrary, onOpen: (HubItem) -> Unit) {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { item { AppHeader(); Spacer(Modifier.height(18.dp)); SectionTitle(title, subtitle) }; if (items.isEmpty()) item { EmptyState("Nothing here yet. Open a title and start watching or add it to favorites.") } else item { LazyVerticalGrid(columns = GridCells.Adaptive(142.dp), modifier = Modifier.height(720.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(items) { PosterCard(it, library, onOpen, Modifier.fillMaxWidth()) } } } }
+private fun SourcesDialog(
+    item: MediaEntry,
+    episode: EpisodeEntry?,
+    loading: Boolean,
+    sources: List<SourceEntry>,
+    onDismiss: () -> Unit,
+    onPlay: (SourceEntry) -> Unit,
+    onDownload: (SourceEntry) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.fillMaxWidth()) {
+                Text("اختر السيرفر", fontWeight = FontWeight.Black)
+                Text(episode?.title ?: item.title, fontSize = 12.sp, color = Muted)
+            }
+        },
+        text = {
+            if (loading) {
+                Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Brand) }
+            } else if (sources.isEmpty()) {
+                Text("لم نجد سيرفرات متاحة الآن.", color = Muted)
+            } else {
+                LazyColumn(Modifier.height((sources.size.coerceAtMost(6) * 78).dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(sources) { src ->
+                        Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFFF4F2F3)) {
+                            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = { onDownload(src) }) { Text("تنزيل", color = Brand) }
+                                Button(onClick = { onPlay(src) }, colors = ButtonDefaults.buttonColors(containerColor = Brand), shape = RoundedCornerShape(10.dp)) { Text("تشغيل") }
+                                Spacer(Modifier.weight(1f))
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(src.name, color = Ink, fontWeight = FontWeight.Black, fontSize = 15.sp)
+                                    Text(src.quality, color = Muted, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("إغلاق", color = Brand) } },
+        containerColor = Color.White,
+        shape = RoundedCornerShape(24.dp)
+    )
 }
 
 @Composable
-private fun SearchScreen(onOpen: (HubItem) -> Unit) {
+private fun SearchDialog(tab: MainTab, onDismiss: () -> Unit, onResults: (List<MediaEntry>) -> Unit) {
+    val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("Search Jikan and Consumet") }
-    var remote by remember { mutableStateOf<List<HubItem>>(emptyList()) }
-    LaunchedEffect(query) {
-        if (query.length < 2) { remote = emptyList(); message = "Type at least 2 letters"; return@LaunchedEffect }
-        loading = true; delay(350)
-        HubApi.search(query).fold(onSuccess = { remote = it; message = "Live search results" }, onFailure = { message = "API fallback: " + (it.message ?: "search unavailable"); remote = emptyList() })
-        loading = false
-    }
-    val local = if (query.isBlank()) localCatalog else localCatalog.filter { it.title.contains(query, true) || it.kind.contains(query, true) || it.genres.any { genre -> genre.contains(query, true) } }
-    val results = (remote + local).distinctBy { it.id }
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { item { AppHeader(ApiState(loading, message, remote)) }; item { OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search anime, movies, K-Drama") }, shape = RoundedCornerShape(8.dp)) }; item { ApiNote() }; items(results) { RowResult(it, onOpen) } }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("بحث في ${tab.label}", fontWeight = FontWeight.Black) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    label = { Text("اكتب ما تبحث عنه") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (busy) CircularProgressIndicator(Modifier.padding(top = 14.dp).size(24.dp), color = Brand)
+                if (message.isNotBlank()) Text(message, color = Live, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = query.isNotBlank() && !busy,
+                onClick = {
+                    busy = true
+                    message = ""
+                    scope.launch {
+                        RemoteApi.search(tab, query).fold(
+                            onSuccess = { busy = false; onResults(it) },
+                            onFailure = { busy = false; message = it.message ?: "تعذر البحث" }
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Brand)
+            ) { Text("بحث") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("إلغاء") } },
+        containerColor = Color.White
+    )
 }
-
-@Composable
-private fun RowResult(item: HubItem, onOpen: (HubItem) -> Unit) {
-    Card(Modifier.fillMaxWidth().clickable { onOpen(item) }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(Panel), border = BorderStroke(1.dp, Color.White.copy(.08f))) { Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) { Box(Modifier.size(78.dp).clip(RoundedCornerShape(8.dp)).background(Brush.linearGradient(listOf(item.accentA, item.accentB)))) { item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) } }; Spacer(Modifier.width(12.dp)); Column(Modifier.weight(1f)) { Text(item.title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black); Text(item.story, color = Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis); Text(item.kind + " | " + item.source, color = Accent, fontSize = 11.sp) } } }
-}
-
-@Composable
-private fun DetailsScreen(item: HubItem, library: LocalLibrary, onBack: () -> Unit, onFavorite: () -> Unit, onWatch: () -> Unit) {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { OutlinedButton(onClick = onBack, shape = RoundedCornerShape(8.dp)) { Text("Back") }; OutlinedButton(onClick = onFavorite, shape = RoundedCornerShape(8.dp)) { Text(if (item.id in library.favorites) "Saved" else "Favorite") } } }; item { Box(Modifier.fillMaxWidth().aspectRatio(.72f).clip(RoundedCornerShape(8.dp)).background(Brush.linearGradient(listOf(item.accentA, item.accentB, Color.Black)))) { item.imageUrl?.let { AsyncImage(model = it, contentDescription = item.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }; Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(.9f))))); Column(Modifier.align(Alignment.BottomStart).padding(18.dp)) { Pill(item.kind, Accent, Color.Black); Spacer(Modifier.height(8.dp)); Text(item.title, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Black); Text(item.year + " | Rating " + item.rating + " | " + item.episodes + " episodes", color = Soft, fontSize = 13.sp) } } }; item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { item.genres.forEach { Pill(it, Panel2, Soft) }; Pill(item.source, Panel2, Accent) } }; item { Text("Story", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold); Text(item.story, color = Soft, fontSize = 15.sp, lineHeight = 22.sp) }; item { Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { PrimaryButton("Watch") { onWatch() }; OutlinedButton(onClick = onWatch, shape = RoundedCornerShape(8.dp)) { Text("Resume " + formatSeconds(library.progress[item.id] ?: 0)) } } }; item { AiTranslationCard() }; item { Text("Episodes", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold); Spacer(Modifier.height(8.dp)); EpisodeList(item.episodes, onWatch) } }
-}
-
-@Composable private fun EpisodeList(count: Int, onWatch: () -> Unit) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { (1..count).forEach { episode -> Card(Modifier.fillMaxWidth().clickable { onWatch() }, shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(Panel), border = BorderStroke(1.dp, Color.White.copy(.07f))) { Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { Text("Episode " + episode, color = Color.White, fontWeight = FontWeight.Bold); Text("Watch", color = Accent, fontSize = 12.sp) } } } } }
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun PlayerScreen(item: HubItem, savedProgress: Int, onBack: () -> Unit, onSaveProgress: (Int) -> Unit, onNext: () -> Unit) {
+private fun PlayerScreen(url: String, title: String, onBack: () -> Unit) {
     val context = LocalContext.current
-    var subtitle by remember { mutableStateOf("Arabic") }
-    var currentPosition by remember { mutableStateOf(savedProgress) }
-    var isReady by remember { mutableStateOf(false) }
-    val player = remember(item.id) {
+    val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(PlayerMediaItem.fromUri(item.videoUrl))
+            setMediaItem(ExoMediaItem.fromUri(url))
             prepare()
-            if (savedProgress > 0) seekTo(savedProgress * 1000L)
             playWhenReady = true
         }
     }
-
-    DisposableEffect(player) {
-        onDispose {
-            onSaveProgress((player.currentPosition / 1000L).toInt())
-            player.release()
+    DisposableEffect(player) { onDispose { player.release() } }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        AndroidView(
+            factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = true } },
+            modifier = Modifier.fillMaxSize()
+        )
+        Surface(
+            Modifier.padding(14.dp).size(44.dp).clickable(onClick = onBack),
+            shape = CircleShape,
+            color = Color.Black.copy(alpha = .55f)
+        ) {
+            Box(contentAlignment = Alignment.Center) { Text("←", color = Color.White, fontSize = 24.sp) }
         }
+        Text(
+            title,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 26.dp, start = 64.dp, end = 64.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
+}
 
-    LaunchedEffect(player) {
-        while (true) {
-            currentPosition = (player.currentPosition / 1000L).toInt()
-            isReady = player.playbackState != 1
-            delay(1000)
-        }
-    }
-
-    Column(Modifier.fillMaxSize().background(Color.Black)) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { onSaveProgress(currentPosition); onBack() }, shape = RoundedCornerShape(10.dp)) { Text("Back") }
-            Text(item.title, color = Color.White, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { viewContext -> PlayerView(viewContext).apply { this.player = player; useController = true } },
-                update = { it.player = player }
-            )
-            if (!isReady) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(.54f)), contentAlignment = Alignment.Center) {
-                    Text("Loading player...", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { Text("Saved position: " + formatSeconds(savedProgress), color = Soft); ProgressLine(currentPosition) }
-            item {
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Arabic", "English", "Off").forEach { option -> FilterChip(selected = subtitle == option, onClick = { subtitle = option }, label = { Text(option) }) }
-                }
-            }
-            item {
-                Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Accent.copy(.3f))) {
-                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("AI Translation", color = Color.White, fontWeight = FontWeight.Black, fontSize = 19.sp)
-                        Text("Audio -> Grok ASR -> OpenAI Translation -> SRT -> in-app subtitle playback.", color = Muted, fontSize = 13.sp)
-                        PrimaryButton("Generate AI SRT") { onSaveProgress(currentPosition) }
+@Composable
+private fun BottomBar(tab: MainTab, onChange: (MainTab) -> Unit) {
+    NavigationBar(containerColor = Color.White, tonalElevation = 9.dp) {
+        MainTab.entries.forEach { t ->
+            val active = t == tab
+            NavigationBarItem(
+                selected = active,
+                onClick = { onChange(t) },
+                icon = {
+                    Surface(shape = RoundedCornerShape(14.dp), color = if (active) Brand else Color.Transparent) {
+                        Text(
+                            t.glyph,
+                            modifier = Modifier.padding(horizontal = 13.dp, vertical = 7.dp),
+                            color = if (active) Color.White else Color(0xFF8B8B92),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black
+                        )
                     }
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PrimaryButton("Next Episode") { player.seekTo(0); currentPosition = 0; onSaveProgress(0); onNext() }
-                    OutlinedButton(onClick = { onSaveProgress(currentPosition) }, shape = RoundedCornerShape(10.dp)) { Text("Save Position") }
-                }
-            }
+                },
+                label = { Text(t.label, fontSize = 11.sp, fontWeight = if (active) FontWeight.Black else FontWeight.Medium) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedTextColor = Brand,
+                    unselectedTextColor = Muted,
+                    indicatorColor = Color.Transparent
+                )
+            )
         }
     }
 }
 
-@Composable private fun ApiNote() { Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color.White.copy(.08f))) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("API paths active", color = Color.White, fontWeight = FontWeight.Black); Text("Anime: Jikan v4. Movies/K-Drama: Consumet FlixHQ route. Local DataStore keeps favorites, history and progress.", color = Muted, fontSize = 12.sp) } } }
-@Composable private fun AiTranslationCard() { Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Accent.copy(.25f))) { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { Text("AI Translation", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black); Text("Button flow: audio -> Grok ASR -> OpenAI Translation -> SRT -> video subtitle track.", color = Muted, fontSize = 13.sp); PrimaryButton("AI Translation") {} } } }
-@Composable private fun EmptyState(text: String) { Card(colors = CardDefaults.cardColors(Panel), shape = RoundedCornerShape(8.dp), border = BorderStroke(1.dp, Color.White.copy(.08f))) { Text(text, color = Muted, modifier = Modifier.padding(18.dp)) } }
-@Composable private fun BottomTabs(active: Tab, onSelect: (Tab) -> Unit) { Surface(color = Color.Transparent, modifier = Modifier.windowInsetsPadding(WindowInsets.navigationBars)) { NavigationBar(containerColor = Color(0xEE080A10), tonalElevation = 0.dp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, Color.White.copy(.08f), RoundedCornerShape(8.dp))) { Tab.entries.forEach { tab -> NavigationBarItem(selected = active == tab, onClick = { onSelect(tab) }, icon = { Text(tab.label.take(1), fontWeight = FontWeight.Black) }, label = { Text(tab.label, fontSize = 10.sp, maxLines = 1) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = Color.Black, selectedTextColor = Accent, indicatorColor = Accent, unselectedIconColor = Muted, unselectedTextColor = Muted)) } } } }
-@Composable private fun PrimaryButton(text: String, onClick: () -> Unit) { Button(onClick = onClick, shape = RoundedCornerShape(8.dp), colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.Black)) { Text(text, fontWeight = FontWeight.Black) } }
-@Composable private fun Pill(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier) { Box(modifier.clip(CircleShape).background(bg).padding(horizontal = 10.dp, vertical = 5.dp)) { Text(text, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1) } }
-@Composable private fun ProgressLine(seconds: Int) { if (seconds <= 0) Divider(color = Color.White.copy(.08f), thickness = 4.dp, modifier = Modifier.clip(CircleShape)) else Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(.12f))) { Box(Modifier.fillMaxWidth((seconds.coerceAtMost(1800) / 1800f).coerceAtLeast(.04f)).height(4.dp).background(Accent)) } }
+@Composable
+private fun Badge(text: String, bg: Color, fg: Color) {
+    Surface(color = bg, shape = RoundedCornerShape(8.dp)) {
+        Text(text, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+    }
+}
 
-private suspend fun Context.toggleFavorite(id: String, library: LocalLibrary) { val next = library.favorites.toMutableSet().also { if (!it.add(id)) it.remove(id) }; localStore.edit { prefs -> prefs[favoritesKey] = next.joinToString("|") } }
-private suspend fun Context.addHistory(id: String, library: LocalLibrary) { val next = (listOf(id) + library.history.filterNot { it == id }).take(40); localStore.edit { prefs -> prefs[historyKey] = next.joinToString("|") } }
-private suspend fun Context.saveProgress(id: String, seconds: Int, library: LocalLibrary) { val next = library.progress.toMutableMap(); if (seconds <= 0) next.remove(id) else next[id] = seconds; localStore.edit { prefs -> prefs[progressKey] = next.entries.joinToString("|") { it.key + ":" + it.value } } }
-private fun String?.decodeSet(): Set<String> = this?.split("|")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
-private fun String?.decodeList(): List<String> = this?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
-private fun String?.decodeProgress(): Map<String, Int> = this?.split("|")?.mapNotNull { entry -> val parts = entry.split(":"); if (parts.size == 2) parts[0] to (parts[1].toIntOrNull() ?: 0) else null }?.filter { it.second > 0 }?.toMap() ?: emptyMap()
-private fun String.url(): String = URLEncoder.encode(this, "UTF-8")
-private fun JSONArray?.namesFromArray(): List<String> = if (this == null) emptyList() else (0 until length()).mapNotNull { index -> optJSONObject(index)?.optString("name")?.takeIf { it.isNotBlank() } }
-private fun formatSeconds(seconds: Int): String { val minutes = seconds / 60; val remainder = seconds % 60; return "%02d:%02d".format(minutes, remainder) }
+@Composable
+private fun LoadingBlock() {
+    Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Brand) }
+}
+
+@Composable
+private fun ErrorBlock(text: String, onRetry: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text, color = Muted, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Brand)) { Text("إعادة المحاولة") }
+    }
+}
+
+@Composable
+private fun EmptyBlock(text: String) {
+    Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { Text(text, color = Muted) }
+}
+
+private fun kindArabic(k: MediaKind) = when (k) {
+    MediaKind.ANIME -> "أنمي"
+    MediaKind.SERIES -> "مسلسل"
+    MediaKind.MOVIE -> "فيلم"
+    MediaKind.CHANNEL -> "قناة مباشرة"
+}
+
+private fun enqueueDownload(context: Context, url: String, title: String) {
+    try {
+        val clean = title.replace(Regex("[^\\p{L}\\p{N}._ -]+"), "_").trim().ifBlank { "AnimeWitcher" }.take(80)
+        val ext = when {
+            url.contains(".m3u8", true) -> ".m3u8"
+            url.contains(".webm", true) -> ".webm"
+            else -> ".mp4"
+        }
+        val req = DownloadManager.Request(Uri.parse(url))
+            .setTitle(clean)
+            .setDescription("Anime Witcher")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "$clean$ext")
+        (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
+        Toast.makeText(context, "بدأ التنزيل", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "تعذر بدء التنزيل: ${e.message}", Toast.LENGTH_LONG).show()
+        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+    }
+}
